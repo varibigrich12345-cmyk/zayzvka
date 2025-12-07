@@ -95,7 +95,6 @@
       font-weight: bold;
       margin: 5px;
     }
-    .btn-save { background: var(--success); }
     .btn-sm { padding: 4px 8px; font-size: 12px; }
     .btn-delete { background: var(--danger); padding: 2px 6px; font-size: 12px; }
     .no-print {
@@ -142,7 +141,7 @@
     }
     .archive-status {
       display: inline-block;
-      padding: 2px 6px;
+      padding: 2 6px;
       border-radius: 4px;
       font-size: 12px;
       margin-left: 8px;
@@ -303,6 +302,29 @@
     document.getElementById('order-number').value = `СТА-${new Date().getFullYear()}-${String(lastSeq).padStart(3, '0')}`;
   }
 
+  function resetForm() {
+    document.getElementById('client-company').value = '';
+    document.getElementById('client-contact').value = '';
+    document.getElementById('master-name').value = '';
+    document.getElementById('client-fio').value = '';
+    document.getElementById('vehicle-brand').value = '';
+    document.getElementById('license-plate').value = '';
+    document.getElementById('mileage').value = '';
+    
+    document.getElementById('planned-table').getElementsByTagName('tbody')[0].innerHTML = '';
+    document.getElementById('actual-table').getElementsByTagName('tbody')[0].innerHTML = '';
+    document.getElementById('parts-table').getElementsByTagName('tbody')[0].innerHTML = '';
+    
+    workIndex = 1; actualIndex = 1; partIndex = 1;
+    
+    // Обновляем дату на текущую
+    const now = new Date();
+    const d = `${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}.${now.getFullYear()}`;
+    document.getElementById('current-date').textContent = d;
+    
+    generateOrderNumber();
+  }
+
   function addWorkRow(type) {
     const isPlanned = type === 'planned';
     const desc = (isPlanned ? document.getElementById('work-desc1') : document.getElementById('work-desc2')).value || '—';
@@ -357,16 +379,16 @@
 
   function removeRow(btn) { btn.closest('tr').remove(); }
 
-  // === ПЕЧАТЬ ЗАЯВКИ → СОХРАНЕНИЕ КАК ЗАЯВКИ ===
   function printClaim() {
     saveAndExport('zayavka');
     printDocument('claim');
+    resetForm(); // <-- ОЧИСТКА ФОРМЫ ПОСЛЕ ПЕЧАТИ ЗАЯВКИ
   }
 
-  // === ПЕЧАТЬ ЗАКАЗ-НАРЯДА → СОХРАНЕНИЕ КАК ЗАКАЗ-НАРЯДА ===
   function printOrder() {
     saveAndExport('zakaz-naryad');
     printDocument('order');
+    // Заказ-наряд не очищает форму — но можно добавить, если нужно
   }
 
   function saveAndExport(type) {
@@ -403,7 +425,6 @@
     const key = 'claims';
     let list = JSON.parse(localStorage.getItem(key) || '[]');
     
-    // Обновляем, если номер уже есть
     const existingIndex = list.findIndex(x => x.header.order === data.header.order);
     if (existingIndex >= 0) {
       list[existingIndex] = data;
@@ -412,8 +433,6 @@
     }
     
     localStorage.setItem(key, JSON.stringify(list));
-
-    // Экспорт CSV
     autoExportToCSV(data, type);
     loadArchive();
   }
@@ -572,8 +591,6 @@
     const item = list.find(x => x.id == id);
     if (!item) return;
 
-    // временно загружаем данные
-    const tempOrder = document.getElementById('order-number').value;
     loadClaim(id);
     setTimeout(() => {
       if (item.status === 'zakaz-naryad') {
@@ -581,7 +598,6 @@
       } else {
         printDocument('claim');
       }
-      // восстановление не требуется — форма и так будет переключена
     }, 100);
   }
 
