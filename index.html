@@ -162,6 +162,10 @@
       width: 50%;
     }
   </style>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 </head>
 <body>
 
@@ -269,8 +273,6 @@
     <div class="no-print">
       <button class="btn" onclick="printClaim()">📄 Распечатать заявку на ремонт</button>
       <button class="btn" style="background:#28a745;" onclick="printOrder()">🖨️ Распечатать заказ-наряд</button>
-      <button class="btn btn-save" onclick="saveToLocal()">✅ Сохранить в архив</button>
-      <button class="btn btn-save" onclick="exportTo1C()">📤 Экспорт в CSV для 1С</button>
     </div>
   </div>
 
@@ -285,10 +287,24 @@
 </div>
 
 <script>
+  // === ИНИЦИАЛИЗАЦИЯ FIREBASE ===
+  const firebaseConfig = {
+    apiKey: "AIzaSyDixYVempEv1EIehC_oSMI98stT61deZ6Y",
+    authDomain: "servistransavto-danik.firebaseapp.com",
+    databaseURL: "https://servistransavto-danik-default-rtdb.firebaseio.com",
+    projectId: "servistransavto-danik",
+    storageBucket: "servistransavto-danik.firebasestorage.app",
+    messagingSenderId: "770451755248",
+    appId: "1:770451755248:web:94874fca1cb9843945f235"
+  };
+
+  // Убираем analytics — не нужен
+  firebase.initializeApp(firebaseConfig);
+  const database = firebase.database();
+
   let workIndex = 1, actualIndex = 1, partIndex = 1;
   let lastSeq = parseInt(localStorage.getItem('lastClaimSeq') || '0');
 
-  // === ИНИЦИАЛИЗАЦИЯ ===
   init();
 
   function init() {
@@ -296,7 +312,8 @@
     const d = `${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}.${now.getFullYear()}`;
     document.getElementById('current-date').textContent = d;
     generateOrderNumber();
-    loadArchive();
+    loadFromFirebase();
+    setInterval(loadFromFirebase, 10000); // автообновление каждые 10 сек
   }
 
   function generateOrderNumber() {
@@ -320,7 +337,6 @@
     
     workIndex = 1; actualIndex = 1; partIndex = 1;
     
-    // Обновляем дату и номер
     const now = new Date();
     const d = `${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}.${now.getFullYear()}`;
     document.getElementById('current-date').textContent = d;
@@ -378,7 +394,18 @@
 
   function removeRow(btn) { btn.closest('tr').remove(); }
 
-  function saveToLocal() {
+  function printClaim() {
+    saveAndSync('zayavka');
+    printDocument('claim');
+    resetForm();
+  }
+
+  function printOrder() {
+    saveAndSync('zakaz-naryad');
+    printDocument('order');
+  }
+
+  function saveAndSync(type) {
     const data = {
       id: Date.now(),
       header: {
@@ -395,24 +422,25 @@
       },
       planned: getTableData('planned-table', false),
       actual: getTableData('actual-table', true),
-      parts: getTableData('parts-table', true)
+      parts: getTableData('parts-table', true),
+      savedAt: new Date().toISOString(),
+      status: type === 'zakaz-naryad' ? 'zakaz-naryad' : 'zayavka'
     };
 
-    let works = 0, parts = 0;
-    data.actual.forEach(r => works += parseFloat(r.total) || 0);
-    data.parts.forEach(r => parts += parseFloat(r.total) || 0);
-    data.totals = {
-      works: works,
-      parts: parts,
-      grand: works + parts
-    };
-
+    // Локальное сохранение
     const key = 'claims';
     let list = JSON.parse(localStorage.getItem(key) || '[]');
     list.push(data);
     localStorage.setItem(key, JSON.stringify(list));
-    alert(`✅ Заявка сохранена!\nНомер: ${data.header.order}`);
-    loadArchive();
+
+    // Сохранение в Firebase
+    const newClaimRef = database.ref('claims').push();
+    newClaimRef.set(data)
+      .then(() => console.log('Сохранено в Firebase'))
+      .catch(err => console.error('Ошибка Firebase:', err));
+
+    // Экспорт CSV
+    exportTo1C(data);
   }
 
   function getTableData(tableId, hasPrice) {
@@ -430,8 +458,26 @@
     return rows;
   }
 
-  function loadArchive() {
-    const list = JSON.parse(localStorage.getItem('claims') || '[]');
+  function loadFromFirebase() {
+    database.ref('claims').once('value')
+      .then(snapshot => {
+        const list = [];
+        snapshot.forEach(child => {
+          list.push(child.val());
+        });
+        renderArchive(list);
+        // Сохраняем в localStorage для офлайна
+        localStorage.setItem('claims', JSON.stringify(list));
+      })
+      .catch(err => {
+        console.error('Ошибка загрузки из Firebase:', err);
+        // Если нет интернета — грузим из localStorage
+        const localList = JSON.parse(localStorage.getItem('claims') || '[]');
+        renderArchive(localList);
+      });
+  }
+
+  function renderArchive(list) {
     const container = document.getElementById('archive-list');
     container.innerHTML = '';
     if (list.length === 0) {
@@ -439,31 +485,54 @@
       return;
     }
 
-    list.sort((a, b) => new Date(b.header.date.split('.').reverse().join('-')) - new Date(a.header.date.split('.').reverse().join('-')));
+    list.sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
 
+    const groups = {};
     list.forEach(item => {
-      const div = document.createElement('div');
-      div.className = 'archive-item';
-      div.innerHTML = `
-        <div>Заявка от ${item.header.date}</div>
-        <div>Номер: ${item.header.order}</div>
-        <div>Компания: ${item.header.company}</div>
-        <div>ФИО клиента: ${item.header.clientFio}</div>
-        <div>Итого: ${(parseFloat(item.totals?.grand) || 0).toFixed(2)} ₽</div>
-        <div class="archive-actions">
-          <button class="btn-sm" style="background:#17a2b8;" onclick="loadClaim(${item.id})">Редактировать</button>
-          <button class="btn-sm" style="background:#28a745;" onclick="printClaimFromArchive(${item.id})">Печать</button>
-        </div>
-      `;
-      container.appendChild(div);
+      const dateKey = item.header.date;
+      if (!groups[dateKey]) groups[dateKey] = [];
+      groups[dateKey].push(item);
+    });
+
+    Object.keys(groups).forEach(date => {
+      const dateDiv = document.createElement('div');
+      dateDiv.className = 'archive-date-header';
+      dateDiv.textContent = date;
+      container.appendChild(dateDiv);
+
+      groups[date].forEach(item => {
+        const grandStr = (parseFloat(item.totals?.grand) || 0).toFixed(2) + ' ₽';
+        const statusClass = item.status === 'zakaz-naryad' ? 'status-zakaz' : 'status-zayavka';
+        const statusText = item.status === 'zakaz-naryad' ? 'Заказ-наряд' : 'Заявка';
+        
+        const div = document.createElement('div');
+        div.className = 'archive-item';
+        div.innerHTML = `
+          <div>
+            Заявка №: ${item.header.order}
+            <span class="archive-status ${statusClass}">${statusText}</span>
+          </div>
+          <div>Компания: ${item.header.company}</div>
+          <div>ФИО клиента: ${item.header.clientFio}</div>
+          <div>Итого: ${grandStr}</div>
+          <div class="archive-actions">
+            ${item.status === 'zayavka' ? 
+              `<button class="btn-sm" style="background:#17a2b8;" onclick="loadClaim('${item.header.order}')">Редактировать</button>` : 
+              `<button class="btn-sm" style="background:#6c757d;" disabled>Закрыто</button>`}
+            <button class="btn-sm" style="background:#28a745;" onclick="printClaimFromArchive('${item.header.order}')">Печать</button>
+          </div>
+        `;
+        container.appendChild(div);
+      });
     });
   }
 
-  function loadClaim(id) {
+  function loadClaim(orderId) {
     const list = JSON.parse(localStorage.getItem('claims') || '[]');
-    const item = list.find(x => x.id == id);
-    if (!item) return;
+    const item = list.find(x => x.header.order === orderId);
+    if (!item || item.status === 'zakaz-naryad') return;
 
+    switchTab('form');
     ['planned-table', 'actual-table', 'parts-table'].forEach(id => {
       document.querySelector(`#${id} tbody`).innerHTML = '';
     });
@@ -525,9 +594,17 @@
     switchTab('form');
   }
 
-  function printClaimFromArchive(id) {
-    loadClaim(id);
-    setTimeout(printClaim, 100);
+  function printClaimFromArchive(orderId) {
+    loadClaim(orderId);
+    setTimeout(() => {
+      const list = JSON.parse(localStorage.getItem('claims') || '[]');
+      const item = list.find(x => x.header.order === orderId);
+      if (item && item.status === 'zakaz-naryad') {
+        printDocument('order');
+      } else {
+        printDocument('claim');
+      }
+    }, 100);
   }
 
   function switchTab(tab) {
@@ -537,7 +614,15 @@
     document.querySelector(`.tab-btn:nth-child(${tab === 'form' ? 1 : 2})`).classList.add('active');
   }
 
-  function printClaim() {
+  function printDocument(type) {
+    if (type === 'claim') {
+      printClaimDocument();
+    } else {
+      printOrderDocument();
+    }
+  }
+
+  function printClaimDocument() {
     const d = document.getElementById('current-date').textContent;
     const n = document.getElementById('order-number').value;
     const c = document.getElementById('client-company').value || '—';
@@ -602,10 +687,9 @@
     `;
 
     printWindow(html);
-    resetForm(); // ← ОЧИСТКА ФОРМЫ
   }
 
-  function printOrder() {
+  function printOrderDocument() {
     const d = document.getElementById('current-date').textContent;
     const n = document.getElementById('order-number').value;
     const m = document.getElementById('master-name').value || '—';
@@ -731,27 +815,27 @@
     };
   }
 
-  function exportTo1C() {
-    const order = document.getElementById('order-number').value;
-    const date = document.getElementById('current-date').textContent;
-    const company = document.getElementById('client-company').value || '';
-    const contact = document.getElementById('client-contact').value || '';
-    const master = document.getElementById('master-name').value || '';
-    const clientFio = document.getElementById('client-fio').value || '';
-    const brand = document.getElementById('vehicle-brand').value || '';
-    const plate = document.getElementById('license-plate').value || '';
+  function exportTo1C(data) {
+    const order = data.header.order;
+    const date = data.header.date;
+    const company = data.header.company || '';
+    const contact = data.header.contact || '';
+    const master = data.header.master || '';
+    const clientFio = data.header.clientFio || '';
+    const brand = data.header.brand || '';
+    const plate = data.header.plate || '';
     const phone = '+7 999 599 00 03';
-    const mileage = document.getElementById('mileage').value || '';
+    const mileage = data.header.mileage.replace(' км', '') || '';
 
     let lines = [];
-    document.querySelectorAll('#planned-table tbody tr').forEach(row => {
-      lines.push([order,date,company,contact,master,clientFio,brand,plate,phone,mileage,'Заявленная',row.cells[1].textContent,row.cells[2].textContent,row.cells[3].textContent,row.cells[4].textContent,'','','']);
+    data.planned.forEach(row => {
+      lines.push([order,date,company,contact,master,clientFio,brand,plate,phone,mileage,'Заявленная',row.desc,row.qty,row.side,row.pos,'','','']);
     });
-    document.querySelectorAll('#actual-table tbody tr').forEach(row => {
-      lines.push([order,date,company,contact,master,clientFio,brand,plate,phone,mileage,'Выполненная',row.cells[1].textContent,row.cells[2].textContent,row.cells[3].textContent,row.cells[4].textContent,'',row.cells[5].textContent,row.cells[6].textContent]);
+    data.actual.forEach(row => {
+      lines.push([order,date,company,contact,master,clientFio,brand,plate,phone,mileage,'Выполненная',row.desc,row.qty,row.side,row.pos,'',row.price,row.total]);
     });
-    document.querySelectorAll('#parts-table tbody tr').forEach(row => {
-      lines.push([order,date,company,contact,master,clientFio,brand,plate,phone,mileage,'Запчасть',row.cells[2].textContent,row.cells[3].textContent,'','',row.cells[1].textContent,row.cells[4].textContent,row.cells[5].textContent]);
+    data.parts.forEach(row => {
+      lines.push([order,date,company,contact,master,clientFio,brand,plate,phone,mileage,'Запчасть',row.name,row.qty,'','',row.art,row.price,row.total]);
     });
 
     const header = ['Номер наряда','Дата','Компания','Контакт','Мастер','ФИО клиента','Марка','Гос. номер','Телефон','Пробег (км)','Тип строки','Описание/Наименование','Кол-во','Сторона','Положение','Артикул','Цена','Сумма'];
