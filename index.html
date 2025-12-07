@@ -124,17 +124,33 @@
     .tab-content.active { display: block; }
     .archive-list {
       display: grid;
-      gap: 10px;
+      gap: 12px;
       margin-top: 10px;
     }
     .archive-item {
-      padding: 12px;
+      padding: 14px;
       border: 1px solid #ddd;
-      border-radius: 6px;
+      border-radius: 8px;
       background: #fafafa;
+      font-size: 14px;
     }
     .archive-item:hover {
       background: #f0f0f0;
+    }
+    .archive-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 6px;
+      font-weight: bold;
+    }
+    .archive-details {
+      display: flex;
+      justify-content: space-between;
+      color: #555;
+    }
+    .archive-actions {
+      margin-top: 10px;
+      text-align: right;
     }
   </style>
 </head>
@@ -267,7 +283,6 @@
   let workIndex = 1, actualIndex = 1, partIndex = 1;
   let lastSeq = parseInt(localStorage.getItem('lastClaimSeq') || '0');
 
-  // === ИНИЦИАЛИЗАЦИЯ ===
   init();
 
   function init() {
@@ -284,7 +299,6 @@
     document.getElementById('order-number').value = `СТА-${new Date().getFullYear()}-${String(lastSeq).padStart(3, '0')}`;
   }
 
-  // === РАБОТА С ТАБЛИЦАМИ ===
   function addWorkRow(type) {
     const isPlanned = type === 'planned';
     const desc = (isPlanned ? document.getElementById('work-desc1') : document.getElementById('work-desc2')).value || '—';
@@ -334,7 +348,6 @@
 
   function removeRow(btn) { btn.closest('tr').remove(); }
 
-  // === СОХРАНЕНИЕ В АРХИВ ===
   function saveClaim() {
     const data = {
       id: Date.now(),
@@ -356,21 +369,20 @@
       savedAt: new Date().toISOString()
     };
 
-    // Вычисляем итоги
     let works = 0, parts = 0;
     data.actual.forEach(r => works += parseFloat(r.total) || 0);
     data.parts.forEach(r => parts += parseFloat(r.total) || 0);
     data.totals = {
-      works: works.toFixed(2),
-      parts: parts.toFixed(2),
-      grand: (works + parts).toFixed(2)
+      works: works,
+      parts: parts,
+      grand: works + parts
     };
 
     const key = 'claims';
     let list = JSON.parse(localStorage.getItem(key) || '[]');
     list.push(data);
     localStorage.setItem(key, JSON.stringify(list));
-    alert(`✅ Заявка сохранена в архив!\nНомер: ${data.header.order}`);
+    alert(`✅ Заявка сохранена!\nНомер: ${data.header.order}`);
     loadArchive();
   }
 
@@ -389,7 +401,6 @@
     return rows;
   }
 
-  // === ЗАГРУЗКА АРХИВА ===
   function loadArchive() {
     const list = JSON.parse(localStorage.getItem('claims') || '[]');
     const container = document.getElementById('archive-list');
@@ -398,16 +409,29 @@
       container.innerHTML = '<div style="text-align:center; color:#666;">Архив пуст</div>';
       return;
     }
-    list.sort((a, b) => new Date(b.header.date.split('.').reverse().join('-')) - new Date(a.header.date.split('.').reverse().join('-')));
+
+    // Сортировка: новые — вверху
+    list.sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
+
     list.forEach(item => {
       const div = document.createElement('div');
       div.className = 'archive-item';
+
+      // Форматируем итоги с рублями
+      const worksStr = (parseFloat(item.totals.works) || 0).toFixed(2) + ' ₽';
+      const partsStr = (parseFloat(item.totals.parts) || 0).toFixed(2) + ' ₽';
+      const grandStr = (parseFloat(item.totals.grand) || 0).toFixed(2) + ' ₽';
+
       div.innerHTML = `
-        <strong>Заявка от ${item.header.date}</strong><br>
-        Номер: ${item.header.order}<br>
-        Компания: ${item.header.company}<br>
-        Итого: ${item.totals.grand} ₽
-        <div style="margin-top:8px;">
+        <div class="archive-header">
+          <span>Заявка от ${item.header.date}</span>
+          <span>Номер: ${item.header.order}</span>
+        </div>
+        <div class="archive-details">
+          <span>Компания: ${item.header.company}</span>
+          <span>Итого: ${grandStr}</span>
+        </div>
+        <div class="archive-actions">
           <button class="btn-sm" style="background:#17a2b8;" onclick="loadClaim(${item.id})">Редактировать</button>
           <button class="btn-sm" style="background:#28a745;" onclick="printClaimFromArchive(${item.id})">Печать</button>
         </div>
@@ -416,20 +440,17 @@
     });
   }
 
-  // === ЗАГРУЗКА ЗАЯВКИ В ФОРМУ ===
   function loadClaim(id) {
     const list = JSON.parse(localStorage.getItem('claims') || '[]');
     const item = list.find(x => x.id == id);
     if (!item) return;
 
-    // Очистка
     ['planned-table', 'actual-table', 'parts-table'].forEach(id => {
       document.querySelector(`#${id} tbody`).innerHTML = '';
     });
     workIndex = 1; actualIndex = 1; partIndex = 1;
     lastSeq = parseInt(item.header.order.split('-')[2]) - 1;
 
-    // Поля
     document.getElementById('order-number').value = item.header.order;
     document.getElementById('client-company').value = item.header.company === '—' ? '' : item.header.company;
     document.getElementById('client-contact').value = item.header.contact === '—' ? '' : item.header.contact;
@@ -440,7 +461,6 @@
     document.getElementById('client-phone').value = item.header.phone === '—' ? '' : item.header.phone;
     document.getElementById('mileage').value = item.header.mileage.replace(' км', '').replace('—', '');
 
-    // Таблицы
     item.planned.forEach(row => {
       const tr = document.querySelector('#planned-table tbody').insertRow();
       const idx = workIndex++;
@@ -499,7 +519,6 @@
     document.querySelector(`.tab-btn:nth-child(${tab === 'form' ? 1 : 2})`).classList.add('active');
   }
 
-  // === ПЕЧАТЬ С ИТОГАМИ И ПОДПИСЯМИ ===
   function printClaim() {
     const d = document.getElementById('current-date').textContent;
     const n = document.getElementById('order-number').value;
@@ -695,7 +714,6 @@
     };
   }
 
-  // === ЭКСПОРТ В CSV ===
   function exportTo1C() {
     const order = document.getElementById('order-number').value;
     const date = document.getElementById('current-date').textContent;
