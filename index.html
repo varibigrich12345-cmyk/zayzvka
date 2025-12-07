@@ -103,6 +103,24 @@
       text-align: center;
       margin-top: 10px;
     }
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .tab-btn {
+      padding: 8px 16px;
+      background: #e9ecef;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .tab-btn.active {
+      background: var(--primary);
+      color: white;
+    }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
     .archive-list {
       display: grid;
       gap: 12px;
@@ -140,8 +158,13 @@
 <body>
 
 <div class="container">
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('form')">Новая заявка</button>
+    <button class="tab-btn" onclick="switchTab('archive')">Архив</button>
+  </div>
+
   <!-- === ФОРМА === -->
-  <div id="form-tab">
+  <div id="form-tab" class="tab-content active">
     <div class="header-row">
       <div>
         ПОСТАВЩИК: Общество с ограниченной ответственностью "СЕРВИСТРАНСАВТО"<br>
@@ -243,9 +266,12 @@
   </div>
 
   <!-- === АРХИВ === -->
-  <div id="archive-section" style="margin-top: 30px;">
+  <div id="archive-tab" class="tab-content">
     <h2>Архив заявок</h2>
     <div id="archive-list" class="archive-list"></div>
+    <div class="no-print" style="margin-top:20px;">
+      <button class="btn btn-archive" style="background:#6c757d;" onclick="switchTab('form')">← Новая заявка</button>
+    </div>
   </div>
 </div>
 
@@ -323,7 +349,6 @@
 
   function removeRow(btn) { btn.closest('tr').remove(); }
 
-  // === ЕДИНСТВЕННАЯ КНОПКА: СОХРАНИТЬ И ЭКСПОРТИРОВАТЬ ===
   function saveAndExport() {
     const data = {
       id: Date.now(),
@@ -359,9 +384,7 @@
     list.push(data);
     localStorage.setItem(key, JSON.stringify(list));
 
-    // Автоматический экспорт в CSV
     autoExportToCSV(data);
-
     alert(`✅ Заявка сохранена!\nНомер: ${data.header.order}`);
     loadArchive();
   }
@@ -399,7 +422,6 @@
     return rows;
   }
 
-  // === АРХИВ С ГРУППИРОВКОЙ ПО ДАТАМ ===
   function loadArchive() {
     const list = JSON.parse(localStorage.getItem('claims') || '[]');
     const container = document.getElementById('archive-list');
@@ -411,7 +433,6 @@
 
     list.sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
 
-    // Группировка по дате (формат: ДД.ММ.ГГГГ)
     const groups = {};
     list.forEach(item => {
       const dateKey = item.header.date;
@@ -419,7 +440,6 @@
       groups[dateKey].push(item);
     });
 
-    // Вывод групп
     Object.keys(groups).forEach(date => {
       const dateDiv = document.createElement('div');
       dateDiv.className = 'archive-date-header';
@@ -450,6 +470,7 @@
     const item = list.find(x => x.id == id);
     if (!item) return;
 
+    switchTab('form');
     ['planned-table', 'actual-table', 'parts-table'].forEach(id => {
       document.querySelector(`#${id} tbody`).innerHTML = '';
     });
@@ -514,7 +535,13 @@
     setTimeout(printClaim, 100);
   }
 
-  // === ПЕЧАТЬ ===
+  function switchTab(tab) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+    document.getElementById(`${tab}-tab`).classList.add('active');
+    document.querySelector(`.tab-btn:nth-child(${tab === 'form' ? 1 : 2})`).classList.add('active');
+  }
+
   function printClaim() {
     const d = document.getElementById('current-date').textContent;
     const n = document.getElementById('order-number').value;
@@ -708,7 +735,6 @@
     };
   }
 
-  // === АВТОЭКСПОРТ В CSV ===
   function autoExportToCSV(data) {
     const order = data.header.order;
     const date = data.header.date;
