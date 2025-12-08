@@ -97,7 +97,6 @@
     }
     .btn-sm { padding: 4px 8px; font-size: 12px; }
     .btn-delete { background: var(--danger); padding: 2px 6px; font-size: 12px; }
-    .btn-edit { background: #ffc107; padding: 2px 6px; font-size: 12px; }
     .no-print {
       display: block;
       text-align: center;
@@ -282,7 +281,7 @@
 
     <div class="no-print">
       <button class="btn" onclick="printClaim()">📄 Распечатать заявку на ремонт</button>
-      <button class="btn" style="background:#28a745;" onclick="printOrder()">🖨️ Распечатать заказ-наряд</button>
+      <!-- Кнопка "Распечатать заказ-наряд" УДАЛЕНА -->
     </div>
   </div>
 
@@ -439,15 +438,7 @@
 
     saveOrUpdateClaim(data);
     printClaimDocument();
-    resetForm();
-  }
-
-  function printOrder() {
-    const data = prepareData('zakaz-naryad');
-    if (!data) return;
-
-    saveOrUpdateClaim(data);
-    printOrderDocument();
+    resetForm(); // Очищаем форму после печати
   }
 
   function saveOrUpdateClaim(data) {
@@ -619,7 +610,7 @@
     const item = list.find(x => x.header.order === orderId);
     if (!item) return;
 
-    switchTab('form');
+    switchTab('form'); // Переходим на форму
     ['planned-table', 'actual-table', 'parts-table'].forEach(id => {
       document.querySelector(`#${id} tbody`).innerHTML = '';
     });
@@ -957,6 +948,11 @@
     document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
     document.getElementById(`${tab}-tab`).classList.add('active');
     document.querySelector(`.tab-btn:nth-child(${tab === 'form' ? 1 : 2})`).classList.add('active');
+    
+    // Если переходим на форму — очищаем её
+    if (tab === 'form') {
+      resetForm();
+    }
   }
 </script>
 
