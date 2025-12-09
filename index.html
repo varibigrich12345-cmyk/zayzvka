@@ -127,6 +127,7 @@
     }
   </style>
 
+  <!-- Supabase SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -251,9 +252,9 @@
 </div>
 
 <script>
-  // === SUPABASE CONFIG ===
-  const supabaseUrl = 'https://ваш-проект.supabase.co'; // ← ЗАМЕНИ НА СВОЙ
-  const supabaseAnonKey = 'ваш-public-ключ';              // ← ЗАМЕНИ НА СВОЙ
+  // === SUPABASE CONFIG (с твоими данными!) ===
+  const supabaseUrl = 'https://rylmxrzbxvnwjciuwweu.supabase.co'; // ← пробелы удалены!
+  const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ5bG14cnpieHZud2pjaXV3d2V1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUxOTMyNjIsImV4cCI6MjA4MDc2OTI2Mn0.5y4ArJpfjZ08W8Z54byTSP3PHxKiKQY4_lvX0PL9pco';
   const supabase = supabase.createClient(supabaseUrl, supabaseAnonKey);
 
   let workIndex = 1, completedIndex = 1, partIndex = 1;
@@ -278,9 +279,11 @@
   async function signInWithGoogle() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: window.location.origin + window.location.pathname }
+      options: {
+        redirectTo: 'https://varibigrich12345-cmyk.github.io'
+      }
     });
-    if (error) alert('❌ Ошибка: ' + error.message);
+    if (error) alert('❌ Ошибка входа: ' + error.message);
   }
 
   async function signOut() {
@@ -289,15 +292,14 @@
   }
 
   supabase.auth.onAuthStateChange((event, session) => {
-    const user = session?.user;
-    currentUser = user;
-    const el = document.getElementById('user-status');
-    if (user) {
-      el.textContent = `👤 ${user.email}`;
+    currentUser = session?.user || null;
+    const statusEl = document.getElementById('user-status');
+    if (currentUser) {
+      statusEl.textContent = `👤 ${currentUser.email}`;
       document.getElementById('sign-in-btn').style.display = 'none';
       document.getElementById('sign-out-btn').style.display = 'inline-block';
     } else {
-      el.textContent = 'Не авторизован';
+      statusEl.textContent = 'Не авторизован';
       document.getElementById('sign-in-btn').style.display = 'inline-block';
       document.getElementById('sign-out-btn').style.display = 'none';
     }
@@ -371,21 +373,25 @@
       .order('created_at', { ascending: false });
 
     const el = document.getElementById('archive-list');
-    el.innerHTML = error ? '<p>Ошибка загрузки.</p>' :
-      (data?.length ? data.map(c => `
+    if (error) {
+      el.innerHTML = '<p>Ошибка загрузки архива.</p>';
+    } else if (data && data.length > 0) {
+      el.innerHTML = data.map(c => `
         <div style="padding:12px;border:1px solid #ddd;margin-bottom:8px;border-radius:6px;background:#fafafa;">
           <strong>№${c.order_number}</strong> — ${c.client_company}<br>
           Авто: ${c.car_brand} (${c.car_number})<br>
           <button class="btn-sm" onclick="loadClaim('${c.id}')">Открыть</button>
         </div>
-      `).join('') : '<p>Архив пуст.</p>');
+      `).join('');
+    } else {
+      el.innerHTML = '<p>Архив пуст.</p>';
+    }
   }
 
   async function loadClaim(id) {
     const { data } = await supabase.from('claims').select('*').eq('id', id).single();
     if (!data) return;
 
-    // Здесь можно расширить загрузку, но для MVP — базовые поля
     document.getElementById('claim-id').value = data.id;
     document.getElementById('order-number').value = data.order_number;
     document.getElementById('client-company').value = data.client_company;
@@ -419,7 +425,6 @@
       return;
     }
 
-    // Требуем входа для сохранения
     if (!currentUser) {
       if (confirm('Для сохранения требуется вход. Авторизоваться?')) {
         signInWithGoogle();
@@ -432,9 +437,11 @@
       ? await supabase.from('claims').update(data).eq('id', id)
       : await supabase.from('claims').insert(data);
 
-    if (error) alert('❌ Ошибка: ' + error.message);
-    else {
-      alert('✅ Заявка сохранена!');
+    if (error) {
+      console.error('Ошибка Supabase:', error);
+      alert('❌ Не удалось сохранить заявку. Проверь настройки RLS и Google Auth.');
+    } else {
+      alert('✅ Заявка сохранена и отправлена в архив!');
       window.print();
       resetForm();
     }
@@ -448,6 +455,11 @@
     document.getElementById('mileage').value = '123456';
     generateOrderNumber();
   }
+
+  // Загрузка текущего сеанса
+  supabase.auth.getSession().then(({ data }) => {
+    if (data.session) currentUser = data.session.user;
+  });
 </script>
 
 </body>
