@@ -85,7 +85,8 @@
       text-align: center;
       margin: 20px 0 12px;
       color: var(--text);
-      font-size: 16px;
+      font-size: 18px;
+      font-weight: bold;
     }
 
     table {
@@ -126,7 +127,6 @@
     }
   </style>
 
-  <!-- Supabase SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -134,7 +134,7 @@
 <div class="container">
   <div id="auth-ui" style="position: fixed; top: 10px; right: 10px; background: #fff; padding: 10px; border: 1px solid #ddd; border-radius: 4px; z-index: 999;">
     <div id="user-status">Загрузка...</div>
-    <button id="sign-in-btn" style="display:none;" onclick="signInWithGoogle()">Войти через Google</button>
+    <button id="sign-in-btn" style="display:none;" onclick="signInWithGoogle()">Войти</button>
     <button id="sign-out-btn" style="display:none;" onclick="signOut()">Выход</button>
   </div>
 
@@ -153,7 +153,7 @@
       тел.: +7 999 599 00 03
     </div>
 
-    <h3>Заявка на ремонт</h3>
+    <h3>ЗАЯВКА НА РЕМОНТ</h3>
 
     <div class="form-row">
       <div class="form-group">
@@ -203,16 +203,11 @@
       </div>
     </div>
 
-    <h3>Заявка на работы</h3>
+    <h3>Заявленные работы</h3>
     <table id="works-table">
       <thead>
         <tr>
-          <th>№</th>
-          <th>Описание</th>
-          <th>Кол-во</th>
-          <th>Сторона</th>
-          <th>Положение</th>
-          <th>Действия</th>
+          <th>№</th><th>Описание</th><th>Кол-во</th><th>Сторона</th><th>Положение</th><th>Действия</th>
         </tr>
       </thead>
       <tbody id="works-body"></tbody>
@@ -223,13 +218,7 @@
     <table id="completed-table">
       <thead>
         <tr>
-          <th>№</th>
-          <th>Описание</th>
-          <th>Кол-во</th>
-          <th>Сторона</th>
-          <th>Положение</th>
-          <th>Цена</th>
-          <th>Действия</th>
+          <th>№</th><th>Описание</th><th>Кол-во</th><th>Сторона</th><th>Положение</th><th>Цена</th><th>Действия</th>
         </tr>
       </thead>
       <tbody id="completed-body"></tbody>
@@ -240,13 +229,7 @@
     <table id="parts-table">
       <thead>
         <tr>
-          <th>№</th>
-          <th>Наименование</th>
-          <th>Ед. изм.</th>
-          <th>Кол-во</th>
-          <th>Цена</th>
-          <th>Сумма</th>
-          <th>Действия</th>
+          <th>№</th><th>Наименование</th><th>Ед. изм.</th><th>Кол-во</th><th>Цена</th><th>Сумма</th><th>Действия</th>
         </tr>
       </thead>
       <tbody id="parts-body"></tbody>
@@ -274,60 +257,7 @@
   const supabase = supabase.createClient(supabaseUrl, supabaseAnonKey);
 
   let workIndex = 1, completedIndex = 1, partIndex = 1;
-  let currentUser = null, userRole = null;
-
-  // === АВТОРИЗАЦИЯ ===
-  async function signInWithGoogle() {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: window.location.origin + window.location.pathname
-      }
-    });
-    if (error) alert('❌ Ошибка входа: ' + error.message);
-  }
-
-  async function signOut() {
-    await supabase.auth.signOut();
-    window.location.reload();
-  }
-
-  // === НАБЛЮДЕНИЕ ===
-  supabase.auth.onAuthStateChange(async (event, session) => {
-    if (event === 'SIGNED_IN' && session?.user) {
-      currentUser = session.user;
-      document.getElementById('user-status').textContent = `👤 ${currentUser.email}`;
-      document.getElementById('sign-in-btn').style.display = 'none';
-      document.getElementById('sign-out-btn').style.display = 'inline-block';
-
-      // Загружаем роль
-      const { data, error } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', currentUser.id)
-        .single();
-
-      if (data) {
-        userRole = data.role;
-        if (userRole === 'admin') {
-          document.getElementById('user-status').textContent += ' (Админ)';
-        }
-      } else {
-        // Создаём запись при первом входе
-        await supabase.from('users').insert({
-          id: currentUser.id,
-          email: currentUser.email
-        });
-        userRole = 'user';
-      }
-      loadArchive();
-    } else {
-      currentUser = null; userRole = null;
-      document.getElementById('user-status').textContent = 'Не авторизован';
-      document.getElementById('sign-in-btn').style.display = 'inline-block';
-      document.getElementById('sign-out-btn').style.display = 'none';
-    }
-  });
+  let currentUser = null;
 
   // === ИНИЦИАЛИЗАЦИЯ ===
   document.addEventListener('DOMContentLoaded', () => {
@@ -338,18 +268,48 @@
   });
 
   function generateOrderNumber() {
-    const lastSeq = parseInt(localStorage.getItem('lastClaimSeq') || '0') + 1;
+    const lastSeq = (parseInt(localStorage.getItem('lastClaimSeq')) || 0) + 1;
     localStorage.setItem('lastClaimSeq', lastSeq.toString());
     document.getElementById('order-number').value =
       `СТА-${new Date().getFullYear()}-${String(lastSeq).padStart(3, '0')}`;
   }
 
+  // === АВТОРИЗАЦИЯ ===
+  async function signInWithGoogle() {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin + window.location.pathname }
+    });
+    if (error) alert('❌ Ошибка: ' + error.message);
+  }
+
+  async function signOut() {
+    await supabase.auth.signOut();
+    window.location.reload();
+  }
+
+  supabase.auth.onAuthStateChange((event, session) => {
+    const user = session?.user;
+    currentUser = user;
+    const el = document.getElementById('user-status');
+    if (user) {
+      el.textContent = `👤 ${user.email}`;
+      document.getElementById('sign-in-btn').style.display = 'none';
+      document.getElementById('sign-out-btn').style.display = 'inline-block';
+    } else {
+      el.textContent = 'Не авторизован';
+      document.getElementById('sign-in-btn').style.display = 'inline-block';
+      document.getElementById('sign-out-btn').style.display = 'none';
+    }
+  });
+
+  // === ФУНКЦИИ ТАБЛИЦ ===
   function addWorkRow() {
     const tbody = document.getElementById('works-body');
     const row = document.createElement('tr');
     row.innerHTML = `
       <td>${workIndex}</td>
-      <td><input type="text" placeholder="Замена масла"></td>
+      <td><input type="text" placeholder="Название работы"></td>
       <td><input type="number" value="1" min="1"></td>
       <td><select><option>Левая</option><option>Правая</option><option>Передняя</option><option>Задняя</option></select></td>
       <td><select><option>Верх</option><option>Низ</option><option>Центр</option></select></td>
@@ -363,7 +323,7 @@
     const row = document.createElement('tr');
     row.innerHTML = `
       <td>${completedIndex}</td>
-      <td><input type="text" placeholder="Замена масла"></td>
+      <td><input type="text" placeholder="Название работы"></td>
       <td><input type="number" value="1" min="1"></td>
       <td><select><option>Левая</option><option>Правая</option><option>Передняя</option><option>Задняя</option></select></td>
       <td><select><option>Верх</option><option>Низ</option><option>Центр</option></select></td>
@@ -378,7 +338,7 @@
     const row = document.createElement('tr');
     row.innerHTML = `
       <td>${partIndex}</td>
-      <td><input type="text" placeholder="Фильтр масляный"></td>
+      <td><input type="text" placeholder="Наименование запчасти"></td>
       <td><select><option>шт.</option><option>л.</option><option>кг.</option></select></td>
       <td><input type="number" value="1" min="1"></td>
       <td><input type="number" value="0" min="0" placeholder="Цена"></td>
@@ -390,6 +350,7 @@
 
   function deleteRow(btn) { btn.closest('tr').remove(); }
 
+  // === НАВИГАЦИЯ ===
   function switchTab(tab) {
     document.querySelectorAll('.tab-content').forEach(e => e.classList.remove('active'));
     document.querySelectorAll('.tab-btn').forEach(e => e.classList.remove('active'));
@@ -398,40 +359,33 @@
     if (tab === 'archive') renderArchive();
   }
 
+  // === АРХИВ ===
   async function renderArchive() {
-    if (!currentUser) return;
+    if (!currentUser) {
+      document.getElementById('archive-list').innerHTML = '<p>Требуется вход для просмотра архива.</p>';
+      return;
+    }
     const { data, error } = await supabase
       .from('claims')
       .select('*')
       .order('created_at', { ascending: false });
 
     const el = document.getElementById('archive-list');
-    el.innerHTML = error ? '<p>Ошибка загрузки архива.</p>' :
+    el.innerHTML = error ? '<p>Ошибка загрузки.</p>' :
       (data?.length ? data.map(c => `
         <div style="padding:12px;border:1px solid #ddd;margin-bottom:8px;border-radius:6px;background:#fafafa;">
           <strong>№${c.order_number}</strong> — ${c.client_company}<br>
           Авто: ${c.car_brand} (${c.car_number})<br>
-          Статус: <b>${c.status === 'zakaz_naryad' ? 'Заказ-наряд' : 'Заявка'}</b><br>
-          <button class="btn-sm" onclick="loadClaim('${c.id}')">✏️ Открыть</button>
+          <button class="btn-sm" onclick="loadClaim('${c.id}')">Открыть</button>
         </div>
       `).join('') : '<p>Архив пуст.</p>');
   }
 
   async function loadClaim(id) {
-    const { data, error } = await supabase
-      .from('claims')
-      .select('*')
-      .eq('id', id)
-      .single();
+    const { data } = await supabase.from('claims').select('*').eq('id', id).single();
+    if (!data) return;
 
-    if (error || !data) return;
-
-    if (data.status === 'zakaz_naryad') {
-      alert('🔒 Это заказ-наряд. Редактирование запрещено.');
-      return;
-    }
-
-    // Заполняем форму (упрощённо — основные поля)
+    // Здесь можно расширить загрузку, но для MVP — базовые поля
     document.getElementById('claim-id').value = data.id;
     document.getElementById('order-number').value = data.order_number;
     document.getElementById('client-company').value = data.client_company;
@@ -445,45 +399,42 @@
     switchTab('form');
   }
 
-  function prepareData() {
-    const fields = ['order-number', 'client-company', 'contact', 'master', 'client-name', 'car-brand', 'car-number', 'mileage'];
-    const data = {};
-    for (const f of fields) {
-      const el = document.getElementById(f.replace('-', '_'));
-      data[f.replace('-', '_')] = el?.value || '';
-    }
-    return {
-      order_number: data['order_number'],
-      client_company: data['client_company'],
-      contact: data['contact'],
-      master: data['master'],
-      client_name: data['client_name'],
-      car_brand: data['car_brand'],
-      car_number: data['car_number'],
-      mileage: parseInt(data['mileage']) || 0,
-      status: 'zayavka',
+  // === ПЕЧАТЬ И СОХРАНЕНИЕ ===
+  async function printClaim() {
+    const data = {
+      order_number: document.getElementById('order-number').value,
+      client_company: document.getElementById('client-company').value,
+      contact: document.getElementById('contact').value,
+      master: document.getElementById('master').value,
+      client_name: document.getElementById('client-name').value,
+      car_brand: document.getElementById('car-brand').value,
+      car_number: document.getElementById('car-number').value,
+      mileage: parseInt(document.getElementById('mileage').value) || 0,
+      status: 'zakaz_naryad',
       created_by: currentUser?.id || null
     };
-  }
 
-  async function printClaim() {
-    if (!currentUser) { alert('Войдите в систему'); return; }
-    const data = prepareData();
-    if (!data.order_number || !data.client_company) {
+    if (!data.client_company) {
       alert('Заполните обязательные поля');
       return;
     }
 
-    data.status = 'zakaz_naryad';
-    const id = document.getElementById('claim-id').value;
+    // Требуем входа для сохранения
+    if (!currentUser) {
+      if (confirm('Для сохранения требуется вход. Авторизоваться?')) {
+        signInWithGoogle();
+      }
+      return;
+    }
 
+    const id = document.getElementById('claim-id').value;
     const { error } = id
       ? await supabase.from('claims').update(data).eq('id', id)
       : await supabase.from('claims').insert(data);
 
     if (error) alert('❌ Ошибка: ' + error.message);
     else {
-      alert('✅ Заявка сохранена как заказ-наряд!');
+      alert('✅ Заявка сохранена!');
       window.print();
       resetForm();
     }
@@ -497,11 +448,6 @@
     document.getElementById('mileage').value = '123456';
     generateOrderNumber();
   }
-
-  // Загрузка при старте
-  supabase.auth.getSession().then(({ data }) => {
-    if (data.session) currentUser = data.session.user;
-  });
 </script>
 
 </body>
