@@ -145,12 +145,15 @@
 
   <div id="form-tab" class="tab-content active">
     <input type="hidden" id="claim-id">
+
     <div class="header-info">
-      <strong>ПОСТАВЩИК:</strong> ООО "СЕРВИСТРАНСАВТО"<br>
-      ИНН 7723905004, КПП 772101001<br>
-      г. Москва, пр-кт Защитников Москвы<br>
+      <strong>ПОСТАВЩИК:</strong> Общество с ограниченной ответственностью "СЕРВИСТРАНСАВТО"<br>
+      ИНН 7723905004, КПП 772101001, Код по ОКПО 29289257<br>
+      111674, г. Москва, вн.тер.г. муниципальный округ Некрасовка, пр-кт Защитников Москвы<br>
       тел.: +7 999 599 00 03
     </div>
+
+    <h3>Заявка на ремонт</h3>
 
     <div class="form-row">
       <div class="form-group">
@@ -159,7 +162,7 @@
       </div>
       <div class="form-group">
         <label>Номер наряда</label>
-        <input type="text" id="order-number" placeholder="автоматически">
+        <input type="text" id="order-number" placeholder="автоматически" readonly>
       </div>
     </div>
 
@@ -204,7 +207,12 @@
     <table id="works-table">
       <thead>
         <tr>
-          <th>№</th><th>Описание</th><th>Кол-во</th><th>Сторона</th><th>Положение</th><th>Действия</th>
+          <th>№</th>
+          <th>Описание</th>
+          <th>Кол-во</th>
+          <th>Сторона</th>
+          <th>Положение</th>
+          <th>Действия</th>
         </tr>
       </thead>
       <tbody id="works-body"></tbody>
@@ -215,12 +223,35 @@
     <table id="completed-table">
       <thead>
         <tr>
-          <th>№</th><th>Описание</th><th>Кол-во</th><th>Сторона</th><th>Положение</th><th>Цена</th><th>Действия</th>
+          <th>№</th>
+          <th>Описание</th>
+          <th>Кол-во</th>
+          <th>Сторона</th>
+          <th>Положение</th>
+          <th>Цена</th>
+          <th>Действия</th>
         </tr>
       </thead>
       <tbody id="completed-body"></tbody>
     </table>
     <button class="btn btn-sm" onclick="addCompletedRow()">➕ Добавить</button>
+
+    <h3>Запчасти</h3>
+    <table id="parts-table">
+      <thead>
+        <tr>
+          <th>№</th>
+          <th>Наименование</th>
+          <th>Ед. изм.</th>
+          <th>Кол-во</th>
+          <th>Цена</th>
+          <th>Сумма</th>
+          <th>Действия</th>
+        </tr>
+      </thead>
+      <tbody id="parts-body"></tbody>
+    </table>
+    <button class="btn btn-sm" onclick="addPartRow()">➕ Добавить</button>
 
     <div class="no-print">
       <button class="btn" onclick="printClaim()">📄 Распечатать заявку на ремонт</button>
@@ -242,7 +273,7 @@
   const supabaseAnonKey = 'ваш-public-ключ';              // ← ЗАМЕНИ НА СВОЙ
   const supabase = supabase.createClient(supabaseUrl, supabaseAnonKey);
 
-  let workIndex = 1, completedIndex = 1;
+  let workIndex = 1, completedIndex = 1, partIndex = 1;
   let currentUser = null, userRole = null;
 
   // === АВТОРИЗАЦИЯ ===
@@ -340,6 +371,21 @@
       <td><button class="btn-delete" onclick="deleteRow(this)">🗑️</button></td>
     `;
     tbody.appendChild(row); completedIndex++;
+  }
+
+  function addPartRow() {
+    const tbody = document.getElementById('parts-body');
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${partIndex}</td>
+      <td><input type="text" placeholder="Фильтр масляный"></td>
+      <td><select><option>шт.</option><option>л.</option><option>кг.</option></select></td>
+      <td><input type="number" value="1" min="1"></td>
+      <td><input type="number" value="0" min="0" placeholder="Цена"></td>
+      <td class="sum-cell">0.00</td>
+      <td><button class="btn-delete" onclick="deleteRow(this)">🗑️</button></td>
+    `;
+    tbody.appendChild(row); partIndex++;
   }
 
   function deleteRow(btn) { btn.closest('tr').remove(); }
